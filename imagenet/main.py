@@ -377,8 +377,21 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
 
 
 def validate(val_loader, model, criterion, args):
+    def trace_handler(p):
+        output = p.key_averages().table(sort_by="self_cpu_time_total")
+        print(output)
+        import pathlib
+        timeline_dir = str(pathlib.Path.cwd()) + '/timeline/'
+        if not os.path.exists(timeline_dir):
+            try:
+                os.makedirs(timeline_dir)
+            except:
+                pass
+        timeline_file = timeline_dir + 'timeline-' + str(torch.backends.quantized.engine) + '-' + \
+                    args.arch + '-' + str(p.step_num) + '-' + str(os.getpid()) + '.json'
+        p.export_chrome_trace(timeline_file)
 
-    def run_validate(loader, base_progress=0):
+    def run_validate(loader, base_progress=0, p=None):
         with torch.no_grad():
             total_time = 0.0
             total_sample = 0
@@ -402,6 +415,8 @@ def validate(val_loader, model, criterion, args):
                 loss = criterion(output, target)
                 if torch.cuda.is_available(): torch.cuda.synchronize()
                 elapsed = time.time() - elapsed
+                if args.profile:
+                    p.step()
                 print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
                 if i >= args.num_warmup:
                     total_time += elapsed
@@ -435,8 +450,21 @@ def validate(val_loader, model, criterion, args):
 
     # switch to evaluate mode
     model.eval()
+    if args.profile:
+        with torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+            record_shapes=True,
+            schedule=torch.profiler.schedule(
+                wait=int(args.num_iter/2),
+                warmup=2,
+                active=1,
+            ),
+            on_trace_ready=trace_handler,
+        ) as p:
+            run_validate(val_loader, p=p)
+    else:
+        run_validate(val_loader)
 
-    run_validate(val_loader)
     if args.distributed:
         top1.all_reduce()
         top5.all_reduce()
