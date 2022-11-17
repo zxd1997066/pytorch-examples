@@ -77,12 +77,28 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
 parser.add_argument('--dummy', action='store_true', help="use fake data to benchmark")
+# for oob
+parser.add_argument('--precision', type=str, default='float32', help='precision')
+parser.add_argument('--channels_last', type=int, default=1, help='use channels last format')
+parser.add_argument('--num_iter', type=int, default=-1, help='num_iter')
+parser.add_argument('--num_warmup', type=int, default=-1, help='num_warmup')
+parser.add_argument('--profile', dest='profile', action='store_true', help='profile')
+parser.add_argument('--quantized_engine', type=str, default=None, help='quantized_engine')
+parser.add_argument('--ipex', dest='ipex', action='store_true', help='ipex')
+parser.add_argument('--jit', dest='jit', action='store_true', help='jit')
 
 best_acc1 = 0
 
 
 def main():
     args = parser.parse_args()
+
+    # set quantized engine
+    if args.quantized_engine is not None:
+        torch.backends.quantized.engine = args.quantized_engine
+    else:
+        args.quantized_engine = torch.backends.quantized.engine
+    print("backends quantized engine is {}".format(torch.backends.quantized.engine))
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -267,7 +283,23 @@ def main_worker(gpu, ngpus_per_node, args):
         num_workers=args.workers, pin_memory=True, sampler=val_sampler)
 
     if args.evaluate:
-        validate(val_loader, model, criterion, args)
+        # NHWC
+        if args.channels_last:
+            model = model.to(memory_format=torch.channels_last)
+            criterion = criterion.to(memory_format=torch.channels_last)
+            print("---- Use NHWC model")
+
+        if args.precision == "bfloat16":
+            print('---- Enable AMP bfloat16')
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                validate(val_loader, model, criterion, args)
+        elif args.precision == "float16":
+            print('---- Enable AMP float16')
+            with torch.cuda.amp.autocast(enabled=True, dtype=torch.float16):
+                validate(val_loader, model, criterion, args)
+        else:
+            validate(val_loader, model, criterion, args)
+
         return
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -348,9 +380,15 @@ def validate(val_loader, model, criterion, args):
 
     def run_validate(loader, base_progress=0):
         with torch.no_grad():
+            total_time = 0.0
+            total_sample = 0
             end = time.time()
             for i, (images, target) in enumerate(loader):
+                if args.num_iter > 0 and i >= args.num_iter: break
                 i = base_progress + i
+
+                # input to device
+                elapsed = time.time()
                 if args.gpu is not None and torch.cuda.is_available():
                     images = images.cuda(args.gpu, non_blocking=True)
                 if torch.backends.mps.is_available():
@@ -362,6 +400,12 @@ def validate(val_loader, model, criterion, args):
                 # compute output
                 output = model(images)
                 loss = criterion(output, target)
+                if torch.cuda.is_available(): torch.cuda.synchronize()
+                elapsed = time.time() - elapsed
+                print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
+                if i >= args.num_warmup:
+                    total_time += elapsed
+                    total_sample += args.batch_size
 
                 # measure accuracy and record loss
                 acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -375,6 +419,10 @@ def validate(val_loader, model, criterion, args):
 
                 if i % args.print_freq == 0:
                     progress.display(i + 1)
+            throughput = total_sample / total_time
+            latency = total_time / total_sample * 1000
+            print('inference latency: %f ms' % latency)
+            print('inference Throughput: %3f images/s' % throughput)
 
     batch_time = AverageMeter('Time', ':6.3f', Summary.NONE)
     losses = AverageMeter('Loss', ':.4e', Summary.NONE)
