@@ -283,12 +283,6 @@ def main_worker(gpu, ngpus_per_node, args):
         num_workers=args.workers, pin_memory=True, sampler=val_sampler)
 
     if args.evaluate:
-        # NHWC
-        if args.channels_last:
-            model = model.to(memory_format=torch.channels_last)
-            criterion = criterion.to(memory_format=torch.channels_last)
-            print("---- Use NHWC model")
-
         if args.precision == "bfloat16":
             print('---- Enable AMP bfloat16')
             with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
@@ -450,6 +444,32 @@ def validate(val_loader, model, criterion, args):
 
     # switch to evaluate mode
     model.eval()
+    sample_input = torch.randn(args.batch_size, 3, 224, 224)
+    # NHWC
+    if args.channels_last:
+        model = model.to(memory_format=torch.channels_last)
+        criterion = criterion.to(memory_format=torch.channels_last)
+        sample_input = sample_input.contiguous(memory_format=torch.channels_last)
+        print("---- Use NHWC model")
+    # FX INT8
+    if args.precision == "int8":
+        print('Converting int8 model...')
+        from torch.ao.quantization import get_default_qconfig_mapping
+        from torch.ao.quantization.quantize_fx import prepare_fx, convert_fx
+        qconfig_mapping = get_default_qconfig_mapping(args.quantized_engine)
+        prepared_model = prepare_fx(model, qconfig_mapping, sample_input)
+        with torch.no_grad():
+            for i in range(3):
+                prepared_model(sample_input)
+        model = convert_fx(prepared_model)
+        print('Convert int8 model done...')
+    # JIT
+    if args.jit:
+        with torch.no_grad():
+            model = torch.jit.trace(model, sample_input)
+            model = torch.jit.freeze(model)
+            print('---- Use traced model')
+
     if args.profile:
         with torch.profiler.profile(
             activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
