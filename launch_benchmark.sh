@@ -1,5 +1,12 @@
 #!/bin/bash
 set -xe
+# model card
+# imagenet: https://github.com/mengfei25/pytorch-examples/tree/develop/imagenet
+# dcgan: https://github.com/mengfei25/pytorch-examples/tree/develop/dcgan
+declare -A MODEL_CLASSES=(
+    ["imagenet"]=" imagenet/main.py -a $model_name --dummy --pretrained --evaluate "
+    ["dcgan"]=" dcgan/main.py --dataset fake "
+)
 
 function main {
     # set common info
@@ -15,10 +22,13 @@ function main {
     # generate benchmark
     for model_name in ${model_name_list[@]}
     do
+        if [ "${model_name}" == "dcgan" ];then
+            model_type='dcgan'
+        else
+            model_type='imagenet'
+        fi
         # cache
-        python imagenet/main.py -a $model_name \
-            --dummy --pretrained --evaluate \
-            --batch-size 1 \
+        python ${MODEL_CLASSES[${model_type}]} --batch-size 1
             --num_iter 3 --num_warmup 1 \
             --precision $precision \
             --channels_last $channels_last \
@@ -62,8 +72,7 @@ function generate_core {
             OOB_EXEC_HEADER=" CUDA_VISIBLE_DEVICES=${device_array[i]} "
         fi
         printf " ${OOB_EXEC_HEADER} \
-            python imagenet/main.py -a $model_name \
-                --dummy --pretrained --evaluate \
+            python ${MODEL_CLASSES[${model_type}]} \
                 --batch-size $batch_size \
                 --num_iter $num_iter --num_warmup $num_warmup \
                 --precision $precision \
@@ -90,8 +99,7 @@ function generate_core_launcher {
                     --log_path ${log_dir} \
                     --ninstances ${#device_array[@]} \
                     --ncore_per_instance ${real_cores_per_instance} \
-            imagenet/main.py -a $model_name \
-                --dummy --pretrained --evaluate \
+            ${MODEL_CLASSES[${model_type}]} \
                 --batch-size $batch_size \
                 --num_iter $num_iter --num_warmup $num_warmup \
                 --precision $precision \

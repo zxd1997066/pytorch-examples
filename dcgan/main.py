@@ -11,13 +11,15 @@ import torch.utils.data
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
+import time
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='cifar10 | lsun | mnist |imagenet | folder | lfw | fake')
 parser.add_argument('--dataroot', required=False, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
-parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
+# parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
+parser.add_argument('--batch-size', type=int, default=1, help='batch_size')
 parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
@@ -34,8 +36,19 @@ parser.add_argument('--outf', default='.', help='folder to output images and mod
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--classes', default='bedroom', help='comma separated list of classes for the lsun data set')
 parser.add_argument('--mps', action='store_true', default=False, help='enables macOS GPU training')
+# for oob
+parser.add_argument('--device', type=str, default='cpu', help='device')
+parser.add_argument('--precision', type=str, default='float32', help='precision')
+parser.add_argument('--channels_last', type=int, default=1, help='use channels last format')
+parser.add_argument('--num_iter', type=int, default=-1, help='num_iter')
+parser.add_argument('--num_warmup', type=int, default=-1, help='num_warmup')
+parser.add_argument('--profile', dest='profile', action='store_true', help='profile')
+parser.add_argument('--quantized_engine', type=str, default=None, help='quantized_engine')
+parser.add_argument('--ipex', dest='ipex', action='store_true', help='ipex')
+parser.add_argument('--jit', dest='jit', action='store_true', help='jit')
 
 opt = parser.parse_args()
+opt.batchSize = opt.batch_size
 print(opt)
 
 try:
@@ -51,8 +64,8 @@ torch.manual_seed(opt.manualSeed)
 
 cudnn.benchmark = True
 
-if torch.cuda.is_available() and not opt.cuda:
-    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+if torch.cuda.is_available() and opt.device != 'cuda':
+    print("WARNING: You have a CUDA device, so you should probably run with --device cuda")
 
 if torch.backends.mps.is_available() and not opt.mps:
     print("WARNING: You have mps device, to enable macOS GPU run with --mps")
@@ -99,7 +112,7 @@ elif opt.dataset == 'mnist':
         nc=1
 
 elif opt.dataset == 'fake':
-    dataset = dset.FakeData(image_size=(3, opt.imageSize, opt.imageSize),
+    dataset = dset.FakeData(size=50000, num_classes=1000, image_size=(3, opt.imageSize, opt.imageSize),
                             transform=transforms.ToTensor())
     nc=3
 
@@ -107,7 +120,7 @@ assert dataset
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
                                          shuffle=True, num_workers=int(opt.workers))
 use_mps = opt.mps and torch.backends.mps.is_available()
-if opt.cuda:
+if opt.device == 'cuda':
     device = torch.device("cuda:0")
 elif use_mps:
     device = torch.device("mps")
@@ -222,62 +235,167 @@ fake_label = 0
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
+# NHWC
+if opt.channels_last:
+    netD = netD.to(memory_format=torch.channels_last)
+    netG = netG.to(memory_format=torch.channels_last)
+    criterion = criterion.to(memory_format=torch.channels_last)
+    print("---- Use NHWC model and input")
+
 if opt.dry_run:
     opt.niter = 1
 
-for epoch in range(opt.niter):
+@torch.no_grad()
+def evaluate():
+    total_time = 0.0
+    total_sample = 0
+    netD.eval()
+    netG.eval()
     for i, data in enumerate(dataloader, 0):
+        if opt.num_iter > 0 and i >= opt.num_iter: break
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################
+        elapsed = time.time()
         # train with real
-        netD.zero_grad()
         real_cpu = data[0].to(device)
         batch_size = real_cpu.size(0)
         label = torch.full((batch_size,), real_label,
-                           dtype=real_cpu.dtype, device=device)
-
+                        dtype=real_cpu.dtype, device=device)
         output = netD(real_cpu)
         errD_real = criterion(output, label)
-        errD_real.backward()
-        D_x = output.mean().item()
-
         # train with fake
         noise = torch.randn(batch_size, nz, 1, 1, device=device)
         fake = netG(noise)
         label.fill_(fake_label)
         output = netD(fake.detach())
         errD_fake = criterion(output, label)
-        errD_fake.backward()
-        D_G_z1 = output.mean().item()
-        errD = errD_real + errD_fake
-        optimizerD.step()
-
         ############################
         # (2) Update G network: maximize log(D(G(z)))
         ###########################
-        netG.zero_grad()
         label.fill_(real_label)  # fake labels are real for generator cost
         output = netD(fake)
         errG = criterion(output, label)
-        errG.backward()
-        D_G_z2 = output.mean().item()
-        optimizerG.step()
+        if torch.cuda.is_available(): torch.cuda.synchronize()
+        elapsed = time.time() - elapsed
+        if opt.profile:
+            opt.p.step()
+        print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
+        if i >= opt.num_warmup:
+            total_time += elapsed
+            total_sample += batch_size
 
-        print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
-              % (epoch, opt.niter, i, len(dataloader),
-                 errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-        if i % 100 == 0:
-            vutils.save_image(real_cpu,
-                    '%s/real_samples.png' % opt.outf,
-                    normalize=True)
-            fake = netG(fixed_noise)
-            vutils.save_image(fake.detach(),
-                    '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch),
-                    normalize=True)
+    throughput = total_sample / total_time
+    latency = total_time / total_sample * 1000
+    print('inference latency: %.3f ms' % latency)
+    print('inference Throughput: %f images/s' % throughput)
 
-        if opt.dry_run:
-            break
-    # do checkpointing
-    torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
-    torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
+def train():
+    for epoch in range(opt.niter):
+        for i, data in enumerate(dataloader, 0):
+            ############################
+            # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+            ###########################
+            # train with real
+            netD.zero_grad()
+            real_cpu = data[0].to(device)
+            batch_size = real_cpu.size(0)
+            label = torch.full((batch_size,), real_label,
+                            dtype=real_cpu.dtype, device=device)
+
+            output = netD(real_cpu)
+            errD_real = criterion(output, label)
+            errD_real.backward()
+            D_x = output.mean().item()
+
+            # train with fake
+            noise = torch.randn(batch_size, nz, 1, 1, device=device)
+            fake = netG(noise)
+            label.fill_(fake_label)
+            output = netD(fake.detach())
+            errD_fake = criterion(output, label)
+            errD_fake.backward()
+            D_G_z1 = output.mean().item()
+            errD = errD_real + errD_fake
+            optimizerD.step()
+
+            ############################
+            # (2) Update G network: maximize log(D(G(z)))
+            ###########################
+            netG.zero_grad()
+            label.fill_(real_label)  # fake labels are real for generator cost
+            output = netD(fake)
+            errG = criterion(output, label)
+            errG.backward()
+            D_G_z2 = output.mean().item()
+            optimizerG.step()
+
+            print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
+                % (epoch, opt.niter, i, len(dataloader),
+                    errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
+            if i % 100 == 0:
+                vutils.save_image(real_cpu,
+                        '%s/real_samples.png' % opt.outf,
+                        normalize=True)
+                fake = netG(fixed_noise)
+                vutils.save_image(fake.detach(),
+                        '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch),
+                        normalize=True)
+
+            if opt.dry_run:
+                break
+        # do checkpointing
+        # torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
+        # torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
+
+def trace_handler(p):
+    output = p.key_averages().table(sort_by="self_cpu_time_total")
+    print(output)
+    import pathlib
+    timeline_dir = str(pathlib.Path.cwd()) + '/timeline/'
+    if not os.path.exists(timeline_dir):
+        try:
+            os.makedirs(timeline_dir)
+        except:
+            pass
+    timeline_file = timeline_dir + 'timeline-' + str(torch.backends.quantized.engine) + '-' + \
+                'dcgan-' + str(p.step_num) + '-' + str(os.getpid()) + '.json'
+    p.export_chrome_trace(timeline_file)
+
+
+if __name__ == '__main__':
+
+    if opt.profile:
+        with torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+            record_shapes=True,
+            schedule=torch.profiler.schedule(
+                wait=int(opt.num_iter/2),
+                warmup=2,
+                active=1,
+            ),
+            on_trace_ready=trace_handler,
+        ) as p:
+            opt.p = p
+            if opt.precision == "bfloat16":
+                print('---- Enable AMP bfloat16')
+                with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                    evaluate()
+            elif opt.precision == "float16":
+                print('---- Enable AMP float16')
+                with torch.cuda.amp.autocast(enabled=True, dtype=torch.float16):
+                    evaluate()
+            else:
+                evaluate()
+    else:
+        if opt.precision == "bfloat16":
+            print('---- Enable AMP bfloat16')
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                evaluate()
+        elif opt.precision == "float16":
+            print('---- Enable AMP float16')
+            with torch.cuda.amp.autocast(enabled=True, dtype=torch.float16):
+                evaluate()
+        else:
+            evaluate()
+
