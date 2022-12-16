@@ -10,7 +10,7 @@ declare -A MODEL_CLASSES=(
 
 function main {
     # set common info
-    source common.sh
+    source oob-common/common.sh
     init_params $@
     fetch_device_info
     set_environment
@@ -93,7 +93,7 @@ function generate_core_launcher {
         real_cores_per_instance=$(echo ${device_array[i]} |awk -F, '{print NF}')
         log_file="${log_dir}/rcpi${real_cores_per_instance}-ins${i}.log"
 
-        printf "python -m launch --enable_jemalloc \
+        printf "python -m oob-common.launch --enable_jemalloc \
                     --core_list $(echo ${device_array[@]} |sed 's/;.//g') \
                     --log_file_prefix rcpi${real_cores_per_instance} \
                     --log_path ${log_dir} \
@@ -112,8 +112,7 @@ function generate_core_launcher {
 }
 
 # download common files
-wget -q --no-check-certificate -O common.sh https://raw.githubusercontent.com/mengfei25/oob-common/main/common.sh
-wget -q --no-check-certificate -O launch.py https://raw.githubusercontent.com/mengfei25/oob-common/main/launch.py
+rm -rf oob-common && git clone https://github.com/intel-sandbox/oob-common.git
 
 # Start
 main "$@"
