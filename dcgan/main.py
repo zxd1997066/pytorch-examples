@@ -15,6 +15,7 @@ import time
 
 
 parser = argparse.ArgumentParser()
+parser.add_argument('-a', '--arch', type=str,default='dcgan')
 parser.add_argument('--dataset', required=True, help='cifar10 | lsun | mnist |imagenet | folder | lfw | fake')
 parser.add_argument('--dataroot', required=False, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)

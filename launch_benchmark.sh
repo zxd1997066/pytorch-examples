@@ -4,7 +4,7 @@ set -xe
 # imagenet: https://github.com/mengfei25/pytorch-examples/tree/develop/imagenet
 # dcgan: https://github.com/mengfei25/pytorch-examples/tree/develop/dcgan
 declare -A MODEL_CLASSES=(
-    ["imagenet"]=" imagenet/main.py -a $model_name --dummy --pretrained --evaluate "
+    ["imagenet"]=" imagenet/main.py --dummy --pretrained --evaluate "
     ["dcgan"]=" dcgan/main.py --dataset fake "
 )
 
@@ -28,7 +28,7 @@ function main {
             model_type='imagenet'
         fi
         # cache
-        python ${MODEL_CLASSES[${model_type}]} --batch-size 1
+        python ${MODEL_CLASSES[${model_type}]} -a $model_name --batch-size 1 \
             --num_iter 3 --num_warmup 1 \
             --precision $precision \
             --channels_last $channels_last \
@@ -72,7 +72,7 @@ function generate_core {
             OOB_EXEC_HEADER=" CUDA_VISIBLE_DEVICES=${device_array[i]} "
         fi
         printf " ${OOB_EXEC_HEADER} \
-            python ${MODEL_CLASSES[${model_type}]} \
+            python ${MODEL_CLASSES[${model_type}]} -a $model_name \
                 --batch-size $batch_size \
                 --num_iter $num_iter --num_warmup $num_warmup \
                 --precision $precision \
@@ -99,7 +99,7 @@ function generate_core_launcher {
                     --log_path ${log_dir} \
                     --ninstances ${#device_array[@]} \
                     --ncore_per_instance ${real_cores_per_instance} \
-            ${MODEL_CLASSES[${model_type}]} \
+            ${MODEL_CLASSES[${model_type}]} -a $model_name \
                 --batch-size $batch_size \
                 --num_iter $num_iter --num_warmup $num_warmup \
                 --precision $precision \
