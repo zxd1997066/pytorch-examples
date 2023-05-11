@@ -405,18 +405,18 @@ def validate(val_loader, model, criterion, args):
                     target = target.cuda(args.gpu, non_blocking=True)
 
                 # compute output
-                images = torch.randn(args.batch_size, 3, 224, 224)
-                start = time.time()
+                images = torch.randn(1, 3, 224, 224)
+                elapsed = time.time()
                 output = model(images)
-                end = time.time()
+                elapsed = time.time() - elapsed
                 loss = criterion(output, target)
                 if torch.cuda.is_available(): torch.cuda.synchronize()
                 #elapsed = time.time() - elapsed
                 if args.profile:
                     p.step()
-                print("Iteration: {}, inference time: {} sec.".format(i, end - start), flush=True)
+                print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
                 if i >= args.num_warmup:
-                    total_time += (end - start)
+                    total_time += elapsed
                     total_sample += args.batch_size
 
                 # measure accuracy and record loss
