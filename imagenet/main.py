@@ -412,7 +412,7 @@ def validate(val_loader, model, criterion, args):
                 elapsed = time.time()
                 output = model(images)
                 elapsed = time.time() - elapsed
-                target = images
+                target = torch.randn(args.batch_size, 3, 224, 224)
                 loss = criterion(output, target)
                 if torch.cuda.is_available(): torch.cuda.synchronize()
                 #elapsed = time.time() - elapsed
