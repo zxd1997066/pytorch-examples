@@ -405,6 +405,7 @@ def validate(val_loader, model, criterion, args):
                     target = target.cuda(args.gpu, non_blocking=True)
 
                 # compute output
+                images = torch.randn(args.batch_size, 3, 224, 224)
                 elapsed = time.time()
                 output = model(images)
                 elapsed = time.time() - elapsed
