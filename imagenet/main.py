@@ -395,7 +395,7 @@ def validate(val_loader, model, criterion, args):
                 i = base_progress + i
 
                 # input to device
-                elapsed = time.time()
+                #elapsed = time.time()
                 if args.gpu is not None and torch.cuda.is_available():
                     images = images.cuda(args.gpu, non_blocking=True)
                 if torch.backends.mps.is_available():
@@ -405,10 +405,12 @@ def validate(val_loader, model, criterion, args):
                     target = target.cuda(args.gpu, non_blocking=True)
 
                 # compute output
+                elapsed = time.time()
                 output = model(images)
+                elapsed = time.time() - elapsed
                 loss = criterion(output, target)
                 if torch.cuda.is_available(): torch.cuda.synchronize()
-                elapsed = time.time() - elapsed
+                #elapsed = time.time() - elapsed
                 if args.profile:
                     p.step()
                 print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
