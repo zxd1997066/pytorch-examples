@@ -390,7 +390,11 @@ def validate(val_loader, model, criterion, args):
             total_time = 0.0
             total_sample = 0
             end = time.time()
-            for i, (images, target) in enumerate(loader):
+            #for i, (images, target) in enumerate(loader):
+            for i in range(args.num_warmup + args.num_iter):
+                images = torch.randn(args.batch_size, 3, 224, 224)
+                if args.channels_last:
+                    images = images.contiguous(memory_format=torch.channels_last)
                 if args.num_iter > 0 and i >= args.num_iter: break
                 i = base_progress + i
 
@@ -405,7 +409,6 @@ def validate(val_loader, model, criterion, args):
                     target = target.cuda(args.gpu, non_blocking=True)
 
                 # compute output
-                images = torch.randn(1, 3, 224, 224)
                 elapsed = time.time()
                 output = model(images)
                 elapsed = time.time() - elapsed
