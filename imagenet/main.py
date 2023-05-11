@@ -413,7 +413,7 @@ def validate(val_loader, model, criterion, args):
                 output = model(images)
                 elapsed = time.time() - elapsed
                 target = torch.randn(args.batch_size, 3, 224, 224)
-                loss = criterion(output, target)
+                #loss = criterion(output, target)
                 if torch.cuda.is_available(): torch.cuda.synchronize()
                 #elapsed = time.time() - elapsed
                 if args.profile:
@@ -425,7 +425,7 @@ def validate(val_loader, model, criterion, args):
 
                 # measure accuracy and record loss
                 acc1, acc5 = accuracy(output, target, topk=(1, 5))
-                losses.update(loss.item(), images.size(0))
+                #losses.update(loss.item(), images.size(0))
                 top1.update(acc1[0], images.size(0))
                 top5.update(acc5[0], images.size(0))
 
