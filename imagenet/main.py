@@ -395,7 +395,6 @@ def validate(val_loader, model, criterion, args):
             end = time.time()
             #for i, (images, target) in enumerate(loader):
             for i in range(args.num_warmup + args.num_iter):
-                images = torch.randn(args.batch_size, 3, 224, 224)
                 if args.num_iter > 0 and i >= args.num_iter: break
                 i = base_progress + i
 
