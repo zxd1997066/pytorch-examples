@@ -4,7 +4,7 @@ set -xe
 # imagenet: https://github.com/mengfei25/pytorch-examples/tree/develop/imagenet
 # dcgan: https://github.com/mengfei25/pytorch-examples/tree/develop/dcgan
 declare -A MODEL_CLASSES=(
-    ["imagenet"]=" imagenet/main.py --dummy --pretrained --evaluate "
+    ["imagenet"]=" imagenet/main.py --dummy --evaluate "
     ["dcgan"]=" dcgan/main.py --dataset fake "
 )
 
