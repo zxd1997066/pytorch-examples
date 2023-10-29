@@ -86,6 +86,10 @@ parser.add_argument('--profile', dest='profile', action='store_true', help='prof
 parser.add_argument('--quantized_engine', type=str, default=None, help='quantized_engine')
 parser.add_argument('--ipex', dest='ipex', action='store_true', help='ipex')
 parser.add_argument('--jit', dest='jit', action='store_true', help='jit')
+parser.add_argument("--compile", action='store_true', default=False,
+                    help="enable torch.compile")
+parser.add_argument("--backend", type=str, default=None,
+                    help="enable torch.compile backend")
 
 best_acc1 = 0
 
@@ -451,6 +455,11 @@ def validate(val_loader, model, criterion, args):
 
     # switch to evaluate mode
     model.eval()
+    if args.compile:
+        if args.backend:
+            model = torch.compile(model, backend=args.backend)
+        else:
+            model = torch.compile(model)
     sample_input = torch.randn(args.batch_size, 3, 224, 224)
     # NHWC
     if args.channels_last:
