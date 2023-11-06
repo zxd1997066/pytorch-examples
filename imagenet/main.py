@@ -163,7 +163,11 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
-
+    if args.compile:
+        if args.backend:
+            model = torch.compile(model, backend=args.backend)
+        else:
+            model = torch.compile(model)
     if not torch.cuda.is_available() and not torch.backends.mps.is_available():
         print('using CPU, this will be slow')
     elif args.distributed:
@@ -455,11 +459,11 @@ def validate(val_loader, model, criterion, args):
 
     # switch to evaluate mode
     model.eval()
-    if args.compile:
-        if args.backend:
-            model = torch.compile(model, backend=args.backend)
-        else:
-            model = torch.compile(model)
+    # if args.compile:
+    #     if args.backend:
+    #         model = torch.compile(model, backend=args.backend)
+    #     else:
+    #         model = torch.compile(model)
     sample_input = torch.randn(args.batch_size, 3, 224, 224)
     # NHWC
     if args.channels_last:
