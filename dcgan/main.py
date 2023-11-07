@@ -47,6 +47,10 @@ parser.add_argument('--profile', dest='profile', action='store_true', help='prof
 parser.add_argument('--quantized_engine', type=str, default=None, help='quantized_engine')
 parser.add_argument('--ipex', dest='ipex', action='store_true', help='ipex')
 parser.add_argument('--jit', dest='jit', action='store_true', help='jit')
+parser.add_argument("--compile", action='store_true', default=False,
+                    help="enable torch.compile")
+parser.add_argument("--backend", type=str, default='inductor',
+                    help="enable torch.compile backend")
 
 opt = parser.parse_args()
 opt.batchSize = opt.batch_size
@@ -252,6 +256,9 @@ def evaluate():
     total_sample = 0
     netD.eval()
     netG.eval()
+    if args.compile:
+        netD = torch.compile(netD, backend=args.backend, options={"freezing": True})
+        netG = torch.compile(netG, backend=args.backend, options={"freezing": True})
     for i, data in enumerate(dataloader, 0):
         if opt.num_iter > 0 and i >= opt.num_iter: break
         ############################
