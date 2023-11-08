@@ -90,6 +90,8 @@ parser.add_argument("--compile", action='store_true', default=False,
                     help="enable torch.compile")
 parser.add_argument("--backend", type=str, default='inductor',
                     help="enable torch.compile backend")
+parser.add_argument("--device", type=str, default='cpu',
+                    help="cpu or cuda")
 
 best_acc1 = 0
 
@@ -126,6 +128,7 @@ def main():
 
     if torch.cuda.is_available():
         ngpus_per_node = torch.cuda.device_count()
+        args.device = "cuda"
     else:
         ngpus_per_node = 1
     if args.multiprocessing_distributed:
@@ -207,6 +210,7 @@ def main_worker(gpu, ngpus_per_node, args):
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
+    print("----device:", device)
     # define loss function (criterion), optimizer, and learning rate scheduler
     criterion = nn.CrossEntropyLoss().to(device)
 
@@ -291,9 +295,14 @@ def main_worker(gpu, ngpus_per_node, args):
             with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
                 validate(val_loader, model, criterion, args)
         elif args.precision == "float16":
-            print('---- Enable AMP float16')
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
-                validate(val_loader, model, criterion, args)
+            if args.device == "cpu":
+                print('---- Enable CPU AMP float16')
+                with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
+                    validate(val_loader, model, criterion, args)
+            elif args.device == "cuda":
+                print('---- Enable CPU AMP float16')
+                with torch.cuda.amp.autocast(enabled=True, dtype=torch.half):
+                    validate(val_loader, model, criterion, args)
         else:
             validate(val_loader, model, criterion, args)
 
@@ -408,8 +417,8 @@ def validate(val_loader, model, criterion, args):
                 if torch.backends.mps.is_available():
                     images = images.to('mps')
                     target = target.to('mps')
-                if torch.cuda.is_available():
-                    target = target.cuda(args.gpu, non_blocking=True)
+                #if torch.cuda.is_available():
+                #    target = target.cuda(args.gpu, non_blocking=True)
 
                 # compute output
                 elapsed = time.time()
