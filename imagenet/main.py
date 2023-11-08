@@ -300,7 +300,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
                     validate(val_loader, model, criterion, args)
             elif args.device == "cuda":
-                print('---- Enable CPU AMP float16')
+                print('---- Enable CUDA AMP float16')
                 with torch.cuda.amp.autocast(enabled=True, dtype=torch.half):
                     validate(val_loader, model, criterion, args)
         else:
