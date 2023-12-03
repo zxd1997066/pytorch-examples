@@ -246,6 +246,9 @@ if opt.channels_last:
     netG = netG.to(memory_format=torch.channels_last)
     criterion = criterion.to(memory_format=torch.channels_last)
     print("---- Use NHWC model and input")
+if opt.compile:
+    netD = torch.compile(netD, backend=opt.backend, options={"freezing": True})
+    netG = torch.compile(netG, backend=opt.backend, options={"freezing": True})
 
 if opt.dry_run:
     opt.niter = 1
@@ -256,9 +259,6 @@ def evaluate():
     total_sample = 0
     netD.eval()
     netG.eval()
-    if opt.compile:
-        netD = torch.compile(netD, backend=opt.backend, options={"freezing": True})
-        netG = torch.compile(netG, backend=opt.backend, options={"freezing": True})
     for i, data in enumerate(dataloader, 0):
         if opt.num_iter > 0 and i >= opt.num_iter: break
         ############################
