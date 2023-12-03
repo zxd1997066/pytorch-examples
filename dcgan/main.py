@@ -256,9 +256,9 @@ def evaluate():
     total_sample = 0
     netD.eval()
     netG.eval()
-    if args.compile:
-        netD = torch.compile(netD, backend=args.backend, options={"freezing": True})
-        netG = torch.compile(netG, backend=args.backend, options={"freezing": True})
+    if opt.compile:
+        netD = torch.compile(netD, backend=opt.backend, options={"freezing": True})
+        netG = torch.compile(netG, backend=opt.backend, options={"freezing": True})
     for i, data in enumerate(dataloader, 0):
         if opt.num_iter > 0 and i >= opt.num_iter: break
         ############################
