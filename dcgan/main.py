@@ -387,22 +387,22 @@ if __name__ == '__main__':
             opt.p = p
             if opt.precision == "bfloat16":
                 print('---- Enable AMP bfloat16')
-                with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.bfloat16):
                     evaluate()
             elif opt.precision == "float16":
                 print('---- Enable AMP float16')
-                with torch.cpu.amp.autocast(enabled=True, dtype=torch.float16):
+                with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.float16):
                     evaluate()
             else:
                 evaluate()
     else:
         if opt.precision == "bfloat16":
             print('---- Enable AMP bfloat16')
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.bfloat16):
                 evaluate()
         elif opt.precision == "float16":
             print('---- Enable AMP float16')
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.float16):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.float16):
                 evaluate()
         else:
             evaluate()
