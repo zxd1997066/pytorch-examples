@@ -162,7 +162,17 @@ def main_worker(gpu, ngpus_per_node, args):
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
+        if args.device == "cuda" and "efficientnet" in args.arch:
+            from torchvision.models._api import WeightsEnum
+            from torch.hub import load_state_dict_from_url
+            
+            def get_state_dict(self, *args, **kwargs):
+                kwargs.pop("check_hash")
+                return load_state_dict_from_url(self.url, *args, **kwargs)
+            WeightsEnum.get_state_dict = get_state_dict
+            model = models.__dict__[args.arch](pretrained=True)
+        else:
+            model = models.__dict__[args.arch](pretrained=True)
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
