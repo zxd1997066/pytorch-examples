@@ -37,7 +37,11 @@ function main {
         for batch_size in ${batch_size_list[@]}
         do
             if [ $batch_size -le 0 ];then
-                batch_size=256
+                if [ "${model_name}" == "dcgan" ];then
+                    batch_size=1
+                else
+                    batch_size=256
+                fi
             fi
             # clean workspace
             logs_path_clean
