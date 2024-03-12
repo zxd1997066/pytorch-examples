@@ -99,13 +99,6 @@ best_acc1 = 0
 def main():
     args = parser.parse_args()
 
-    # set quantized engine
-    if args.quantized_engine is not None:
-        torch.backends.quantized.engine = args.quantized_engine
-    else:
-        args.quantized_engine = torch.backends.quantized.engine
-    print("backends quantized engine is {}".format(torch.backends.quantized.engine))
-
     if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -197,9 +190,10 @@ def main_worker(gpu, ngpus_per_node, args):
                 # DistributedDataParallel will divide and allocate batch_size to all
                 # available GPUs if device_ids are not set
                 model = torch.nn.parallel.DistributedDataParallel(model)
-    elif args.gpu is not None and torch.cuda.is_available():
+    elif args.gpu is not None or torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
+        print("model to cuda")
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
         model = model.to(device)
@@ -406,19 +400,16 @@ def validate(val_loader, model, criterion, args):
         with torch.no_grad():
             total_time = 0.0
             total_sample = 0
-            images = torch.randn(args.batch_size, 3, 224, 224)
-            if args.channels_last:
-                images = images.contiguous(memory_format=torch.channels_last)
             end = time.time()
             #for i, (images, target) in enumerate(loader):
             for i in range(args.num_warmup + args.num_iter):
                 if args.num_iter > 0 and i >= args.num_iter: break
                 i = base_progress + i
 
-                # input to device
+                images = torch.randn(args.batch_size, 3, 224, 224)
+                if args.channels_last:
+                    images = images.contiguous(memory_format=torch.channels_last)
                 #elapsed = time.time()
-                if args.gpu is not None and torch.cuda.is_available():
-                    images = images.cuda(args.gpu, non_blocking=True)
                 if torch.backends.mps.is_available():
                     images = images.to('mps')
                     target = target.to('mps')
@@ -427,11 +418,14 @@ def validate(val_loader, model, criterion, args):
 
                 # compute output
                 elapsed = time.time()
+                # input to device
+                if args.gpu is not None or torch.cuda.is_available():
+                    images = images.cuda(args.gpu, non_blocking=True)
                 output = model(images)
+                if torch.cuda.is_available(): torch.cuda.synchronize()
                 elapsed = time.time() - elapsed
                 target = torch.randn(args.batch_size, 3, 224, 224)
                 #loss = criterion(output, target)
-                if torch.cuda.is_available(): torch.cuda.synchronize()
                 #elapsed = time.time() - elapsed
                 if args.profile:
                     p.step()
