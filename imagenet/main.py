@@ -140,6 +140,8 @@ def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
     args.gpu = gpu
 
+    if torch.cuda.is_available() and args.gpu is None:
+        args.gpu = 0
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))
 
