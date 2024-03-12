@@ -403,14 +403,14 @@ def validate(val_loader, model, criterion, args):
             total_time = 0.0
             total_sample = 0
             end = time.time()
+            images = torch.randn(args.batch_size, 3, 224, 224)
+            if args.channels_last:
+                images = images.contiguous(memory_format=torch.channels_last)
             #for i, (images, target) in enumerate(loader):
             for i in range(args.num_warmup + args.num_iter):
                 if args.num_iter > 0 and i >= args.num_iter: break
                 i = base_progress + i
 
-                images = torch.randn(args.batch_size, 3, 224, 224)
-                if args.channels_last:
-                    images = images.contiguous(memory_format=torch.channels_last)
                 #elapsed = time.time()
                 if torch.backends.mps.is_available():
                     images = images.to('mps')
@@ -426,6 +426,7 @@ def validate(val_loader, model, criterion, args):
                 output = model(images)
                 if torch.cuda.is_available(): torch.cuda.synchronize()
                 elapsed = time.time() - elapsed
+                images = images.cpu()
                 target = torch.randn(args.batch_size, 3, 224, 224)
                 #loss = criterion(output, target)
                 #elapsed = time.time() - elapsed
