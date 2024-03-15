@@ -38,7 +38,7 @@ function main {
         do
             if [ $batch_size -le 0 ];then
                 if [ "${model_name}" == "dcgan" ];then
-                    batch_size=1
+                    batch_size=16
                 else
                     batch_size=256
                 fi
