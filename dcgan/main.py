@@ -264,7 +264,7 @@ def evaluate():
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################
-        elapsed = time.time()
+        # elapsed = time.time()
         # train with real
         real_cpu = data[0].to(device)
         batch_size = real_cpu.size(0)
@@ -282,10 +282,12 @@ def evaluate():
         # (2) Update G network: maximize log(D(G(z)))
         ###########################
         label.fill_(real_label)  # fake labels are real for generator cost
+        elapsed = time.time()
         output = netD(fake)
+        elapsed = time.time() - elapsed
         errG = criterion(output, label)
         if torch.cuda.is_available(): torch.cuda.synchronize()
-        elapsed = time.time() - elapsed
+        # elapsed = time.time() - elapsed
         if opt.profile:
             opt.p.step()
         print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
