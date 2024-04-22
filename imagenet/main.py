@@ -21,8 +21,9 @@ import torchvision.transforms as transforms
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import Subset
 from torch._inductor import config as inductor_config
-inductor_config.profiler_mark_wrapper_call = True
-inductor_config.cpp.enable_kernel_profile = True
+import torch._inductor
+torch._inductor.config.profiler_mark_wrapper_call = True
+torch._inductor.config.cpp.enable_kernel_profile = True
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
