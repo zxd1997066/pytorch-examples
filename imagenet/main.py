@@ -494,6 +494,9 @@ def validate(val_loader, model, criterion, args):
             print('---- Use traced model')
 
     if args.profile:
+        from torch._inductor import config as inductor_config
+        inductor_config.profiler_mark_wrapper_call = True
+        inductor_config.cpp.enable_kernel_profile = True
         with torch.profiler.profile(
             activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
             record_shapes=True,
