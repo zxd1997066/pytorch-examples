@@ -470,7 +470,10 @@ def validate(val_loader, model, criterion, args):
     # switch to evaluate mode
     model.eval()
     if args.compile:
-        model = torch.compile(model, backend=args.backend, options={"freezing": True})
+        if args.backend == "cudagraphs":
+            model = torch.compile(model, backend=args.backend)
+        else:
+            model = torch.compile(model, backend=args.backend, options={"freezing": True})
     sample_input = torch.randn(args.batch_size, 3, 224, 224)
     # NHWC
     if args.channels_last:
