@@ -96,12 +96,16 @@ parser.add_argument("--backend", type=str, default='inductor',
                     help="enable torch.compile backend")
 parser.add_argument("--device", type=str, default='cpu',
                     help="cpu or cuda")
-
+parser.add_argument("--triton_cpu", action='store_true', default=False,
+                    help="enable triton_cpu")
 best_acc1 = 0
 
 
 def main():
     args = parser.parse_args()
+    if args.triton_cpu:
+        import torch._inductor.config
+        torch._inductor.config.cpu_backend="triton"
 
     if args.seed is not None:
         random.seed(args.seed)
