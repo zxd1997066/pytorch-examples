@@ -103,9 +103,6 @@ best_acc1 = 0
 
 def main():
     args = parser.parse_args()
-    if args.triton_cpu:
-        import torch._inductor.config
-        torch._inductor.config.cpu_backend="triton"
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -127,6 +124,9 @@ def main():
 
     args.distributed = args.world_size > 1 or args.multiprocessing_distributed
     import torch
+    if args.triton_cpu:
+        import torch._inductor.config
+        torch._inductor.config.cpu_backend="triton"
     if torch.cuda.is_available():
         ngpus_per_node = torch.cuda.device_count()
         args.device = "cuda"
