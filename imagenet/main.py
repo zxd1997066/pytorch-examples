@@ -125,6 +125,7 @@ def main():
     args.distributed = args.world_size > 1 or args.multiprocessing_distributed
     import torch
     if args.triton_cpu:
+        print("run with triton cpu backend")
         import torch._inductor.config
         torch._inductor.config.cpu_backend="triton"
     if torch.cuda.is_available():
