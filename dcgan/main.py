@@ -51,6 +51,8 @@ parser.add_argument("--compile", action='store_true', default=False,
                     help="enable torch.compile")
 parser.add_argument("--backend", type=str, default='inductor',
                     help="enable torch.compile backend")
+parser.add_argument("--triton_cpu", action='store_true', default=False,
+                    help="enable triton_cpu")
 
 opt = parser.parse_args()
 opt.batchSize = opt.batch_size
@@ -77,7 +79,10 @@ if torch.backends.mps.is_available() and not opt.mps:
   
 if opt.dataroot is None and str(opt.dataset).lower() != 'fake':
     raise ValueError("`dataroot` parameter is required for dataset \"%s\"" % opt.dataset)
-
+if opt.triton_cpu:
+        print("run with triton cpu backend")
+        import torch._inductor.config
+        torch._inductor.config.cpu_backend="triton"
 if opt.dataset in ['imagenet', 'folder', 'lfw']:
     # folder dataset
     dataset = dset.ImageFolder(root=opt.dataroot,
