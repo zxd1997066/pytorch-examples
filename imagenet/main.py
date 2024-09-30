@@ -478,10 +478,10 @@ def validate(val_loader, model, criterion, args):
     if args.compile:
         if args.backend == "cudagraphs":
             model = torch.compile(model, backend=args.backend)
-        elif args.backend == "zentorch":
-            import zentorch
-            import torch
-            model = torch.compile(model, backend=args.backend, dynamic=False)
+        # elif args.backend == "zentorch":
+        #     import zentorch
+        #     import torch
+        #     model = torch.compile(model, backend=args.backend, dynamic=False)
         else:
             model = torch.compile(model, backend=args.backend, options={"freezing": True})
     sample_input = torch.randn(args.batch_size, 3, 224, 224)
