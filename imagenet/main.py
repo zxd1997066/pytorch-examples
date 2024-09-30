@@ -408,6 +408,7 @@ def validate(val_loader, model, criterion, args):
         p.export_chrome_trace(timeline_file)
 
     def run_validate(loader, base_progress=0, p=None):
+        import torch
         with torch.no_grad():
             total_time = 0.0
             total_sample = 0
